@@ -331,8 +331,6 @@ module.exports = function(source) {
     } else {
       code = gIndent + code.replace(/\r?\n/g, '\n'+gIndent);
     }
-
-    console.log(code);
     return code;
 
   }).bind(this));
