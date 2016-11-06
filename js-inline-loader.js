@@ -324,7 +324,7 @@ module.exports = function(source) {
       fnAst = replaceIdentifier( fnAst.params[i].name, fnArgs[i], fnAst );
     }
 
-    // Compile the code and properly indent it;
+    // Compile the code and properly indent it
     var code = renderFunction(fnAst);
     if (gAssignExpr) {
       code = gIndent + gAssignExpr + code.replace(/\r?\n/g, '\n'+gIndent+'    ');

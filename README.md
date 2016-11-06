@@ -1,6 +1,6 @@
-# function-inline-loader
+# js-inline-loader
 
-[![Module Version](https://img.shields.io/npm/v/function-inline-loader.svg?label=version&maxAge=86400)](https://www.npmjs.com/package/function-inline-loader)
+[![Module Version](https://img.shields.io/npm/v/js-inline-loader.svg?label=version&maxAge=86400)](https://www.npmjs.com/package/js-inline-loader)
 
 A webpack loader than enables inlining functions from other modules
 
@@ -42,7 +42,7 @@ The webpack loader will automagically expand the contents of the function you ar
 First install the node module:
 
 ```
-npm install --save-dev function-inline-loader
+npm install --save-dev js-inline-loader
 ```
 
 Then install it as a preloader on webpack:
@@ -52,7 +52,7 @@ Then install it as a preloader on webpack:
       {
         test: /.js$/,
         exclude: /node_modules/,
-        loader: 'function-inline-loader'
+        loader: 'js-inline-loader'
       }
     ],
 ```

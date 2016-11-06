@@ -1,14 +1,14 @@
 {
-  "name": "function-inline-loader",
+  "name": "js-inline-loader",
   "version": "0.1.0",
   "description": "A webpack loader than enables inlining functions from other modules",
-  "main": "function-inline-loader.js",
+  "main": "js-inline-loader.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wavesoft/function-inline-loader.git"
+    "url": "git+https://github.com/wavesoft/js-inline-loader.git"
   },
   "keywords": [
     "webpack-loader",
@@ -19,9 +19,9 @@
   "author": "Ioannis Charalampidis",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/wavesoft/function-inline-loader/issues"
+    "url": "https://github.com/wavesoft/js-inline-loader/issues"
   },
-  "homepage": "https://github.com/wavesoft/function-inline-loader#readme",
+  "homepage": "https://github.com/wavesoft/js-inline-loader#readme",
   "dependencies": {
     "escodegen": "^1.8.1",
     "esprima": "^3.1.1"
