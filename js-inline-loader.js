@@ -1,9 +1,9 @@
-const fs = require("fs");
-const path = require("path");
 const esprima = require('esprima');
 const escodegen = require('escodegen');
+const fs = require("fs");
+const path = require("path");
 
-const INLINE_MACRO = /^([\t ]*)(\S.*)?%inline\s*\(\s*['"]([^"']+)["']\s*\)\s*\.(\w+)\s*\(([\s\S]*?)\);$/gm;
+const MACRO = /%inline\s*\(\s*["'](.*?)['"]\s*\)\s*\.\s*(\w+)\s*\((\s*\))?/g;
 
 /**
  * This function walks the given module AST and tries to locate all the
@@ -160,6 +160,11 @@ function getExportedFunctions(ast) {
  */
 function renderFunction(ast) {
 
+  // Empty functions have empty contents
+  if (ast.body.body.length === 0) {
+    return '';
+  }
+
   // Functions that have only a return statement, skip the 'return' and
   // render only it's value
   if (ast.body.body[0].type === 'ReturnStatement') {
@@ -288,51 +293,146 @@ function loadModuleContents(modulePath, options) {
 }
 
 /**
+ * Return the inline contents of the given function from the given module with
+ * the given argument string.
+ *
+ * @this {loaderAPI} The function should be bound to the webpack loader API
+ * @param {String} gModule - The module that contains the actions
+ * @param {String} gFunction - The module function to inline
+ * @param {String} gArgs - The arguments passed to the inline function
+ * @returns {String} Returns the generated code for this inline function
+ */
+function getFunctionCode(gModule, gFunction, fnArgs) {
+  // Resolve filename
+  var filePath = path.resolve(this.context, gModule);
+  var contents = loadModuleContents(filePath, this.options);
+  if (!contents) {
+    this.emitError('Could not find module `' + gModule + '`');
+    return '/* Missing module ' + gModule + ' */';
+  }
+
+  // Load file and extract AST
+  var ast;
+  try {
+    ast = esprima.parse(contents, { sourceType: 'module' })
+  } catch (e) {
+    this.emitError('%inline("' + gModule + '"): ' + e.toString());
+    return '/* Parsing error in module ' + gModule + ' */';
+  }
+  this.addDependency(filePath);
+
+  // Locate the correct function AST
+  var exportedFn = getExportedFunctions(ast);
+  var fnAst = exportedFn[gFunction];
+  if (!fnAst) {
+    this.emitError('%inline("' + gModule + '"): Undefined function `' + gFunction);
+    return '/* Unknown inline ' + gFunction + ' */';
+  }
+
+  // Replace arguments in the function ast
+  for (var i=0; i<fnArgs.length; ++i) {
+    fnAst = replaceIdentifier( fnAst.params[i].name, fnArgs[i], fnAst );
+  }
+
+  // Render contents
+  return renderFunction(fnAst);
+}
+
+/**
+ * This function walks the AST and returns the node that calls the magic
+ * inline function `___js_inline_loader_inline`.
+ *
+ * @param {Object} ast - The AST to walk
+ * @returns {Object} Returns the AST node of the magic function
+ */
+function findInlineToken(ast) {
+  if ((ast.type === 'CallExpression') && (ast.callee.name === '___js_inline_loader_inline')) {
+    return ast;
+  }
+
+  // Walk object properties
+  var keys = Object.keys(ast);
+  for (var i=0, l=keys.length; i<l; ++i) {
+    var key = keys[i];
+    var value = ast[key];
+
+    // Process each item of an array
+    if (Array.isArray(value)) {
+      for (var j=0, jl=value.length; j<jl; ++j) {
+        if (typeof value[j] === 'object') {
+          var ans = findInlineToken(value[j]);
+          if (ans) return ans;
+        }
+      }
+
+    // And forward the checks of the objects
+    } else if ((typeof value === 'object') && (value !== null)) {
+      var ans = findInlineToken(value);
+      if (ans) return ans;
+
+    }
+  }
+
+  // Nothing found
+  return null;
+}
+
+/**
+ * Correct replacement of an `%inline` macro, using AST processing
+ *
+ * @param {String} source - The source code to proess
+ * @param {Function} callback - The callback to use to get replacements
+ * @returns {String} Returns the new source
+ */
+function replaceInlineFunc(source, callback) {
+  while (true) {
+    var ast;
+
+    // Parse the current source into the AST
+    try {
+      ast = esprima.parse(source, {sourceType: 'module', range: true});
+    } catch (e) {
+      this.emitError('Inline processing failed: SyntaxError: ' + e.toString());
+      return source;
+    }
+
+    // Find an inline token
+    var token = findInlineToken(ast);
+    if (!token) {
+      return source;
+    }
+
+    // Found a token? Callback with details
+    var replacement = callback(
+      token.arguments[0].value,
+      token.arguments[1].name,
+      token.arguments.slice(2)
+    );
+
+    // Replace that part of the source with the generated code
+    source = source.substring(0, token.range[0]) + replacement +
+             source.substring(token.range[1]);
+  }
+}
+
+/**
  * Export the webpack replace function
  */
 module.exports = function(source) {
   this.cacheable();
 
-  // Replace all the %inline macro encounters
-  return source.replace(INLINE_MACRO, (function(m, gIndent, gAssignExpr, gFile, gFunction, gArgs) {
+  // Convert the convenient `%macro` to a proper JS expression
+  var hasMacros = false;
+  var normSource = source.replace(MACRO, function(m, gModule, gFunction, gEmpty) {
+    hasMacros = true;
+    return '___js_inline_loader_inline(\'' + gModule + '\',' + gFunction + (gEmpty ? ')' : ',');
+  });
 
-    // Resolve filename
-    var filePath = path.resolve(this.context, gFile);
+  // If we don't have macros, don't bother
+  if (!hasMacros) {
+    return source;
+  }
 
-    // Load file and extract AST
-    var ast = esprima.parse(loadModuleContents(filePath, this.options), { sourceType: 'module' })
-    this.addDependency(filePath);
-
-    // Locate the correct function AST
-    var exportedFn = getExportedFunctions(ast);
-    var fnAst = exportedFn[gFunction];
-    if (!fnAst) {
-      this.emitError('Trying to inline unknown function ' + gFunction + ' in module ' + gFile);
-      return '/* Unknown inline ' + gFunction + ' */';
-    }
-
-    // Compile the arguments ast
-    var fnArgs = compileArgumentAst(gArgs);
-    if (fnArgs.length !== fnAst.params.length) {
-      this.emitError('Function ' + gFunction + ' is expecting exactly ' +
-        fnAst.params.length + ' arguments, but got ' + fnArgs.length);
-      return '/* Invalid syntax for ' + gFunction + ' */';
-    }
-
-    // Replace arguments in the function ast
-    for (var i=0; i<fnArgs.length; ++i) {
-      fnAst = replaceIdentifier( fnAst.params[i].name, fnArgs[i], fnAst );
-    }
-
-    // Compile the code and properly indent it
-    var code = renderFunction(fnAst);
-    if (gAssignExpr) {
-      code = gIndent + gAssignExpr + code.replace(/\r?\n/g, '\n'+gIndent+'    ');
-    } else {
-      code = gIndent + code.replace(/\r?\n/g, '\n'+gIndent);
-    }
-    return code;
-
-  }).bind(this));
-
+  // Replace all inline functions using the AST
+  return replaceInlineFunc.call(this, normSource, getFunctionCode.bind(this));
 };
