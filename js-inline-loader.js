@@ -193,6 +193,10 @@ function renderFunction(ast) {
  * @returns {Object} Returns the modified AST.
  */
 function replaceIdentifier(name, withAst, inAst) {
+  if (!inAst) {
+    return inAst;
+  }
+
   if ((inAst.type === 'Identifier') && (inAst.name === name)) {
     return withAst;
   }
@@ -329,9 +333,30 @@ function getFunctionCode(gModule, gFunction, fnArgs) {
     return '/* Unknown inline ' + gFunction + ' */';
   }
 
+  // Validate the length of the arguments
+  if (fnArgs.length !== fnAst.params.length) {
+    var requiredCount = fnAst.params.length;
+    if (fnAst.defaults.length) {
+      requiredCount = fnAst.defaults.filter(function(v) { return v === undefined; }).length;
+    }
+
+    if (fnArgs.length < requiredCount) {
+      this.emitError('%inline("' + gModule + '").' + gFunction + ' is expecting at least ' +
+        fnAst.params.length + ' arguments, but got ' + fnArgs.length);
+    } else if (fnArgs.length > fnAst.params.length) {
+      this.emitError('%inline("' + gModule + '").' + gFunction + ' is expecting at most ' +
+        fnAst.params.length + ' arguments, but got ' + fnArgs.length);
+    }
+  }
+
   // Replace arguments in the function ast
-  for (var i=0; i<fnArgs.length; ++i) {
-    fnAst = replaceIdentifier( fnAst.params[i].name, fnArgs[i], fnAst );
+  for (var i=0; i<fnAst.params.length; ++i) {
+    var defaultAst = fnAst.defaults.length && fnAst.defaults[i] || {type: 'Identifier', name: 'undefined'};
+    if (i < fnArgs.length) {
+      fnAst = replaceIdentifier( fnAst.params[i].name, fnArgs[i], fnAst );
+    } else {
+      fnAst = replaceIdentifier( fnAst.params[i].name, defaultAst, fnAst );
+    }
   }
 
   // Render contents
