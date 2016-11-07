@@ -61,20 +61,6 @@ Then install it as a preloader on webpack:
 
 ## Caveats
 
-The macro tries it's best to behave like a javascript expression but it's *NOT*!
-
-* Make sure to always terminate the `%inline` macro with `);` (yes, the semi-colon is important)
-* You can get wild with the arguments, you can even write anonymous in-line functions, but make sure the `);` expression never appears at the end of a line! For example:
-
-```js
-%inline('path/to/module').inlineFunction(
-    function() {
-      return (1+2)
-      // WARNING: Avoid adding termination ';'
-    }
-  );
-```
-
 The loader will parse the javascript AST of the refered module and identify all the functions exported by it. However not all expressions are yet supported. Below you can see what is currently supported:
 
 ### Will NOT work
