@@ -380,6 +380,15 @@ function findInlineToken(ast) {
 /**
  * Correct replacement of an `%inline` macro, using AST processing
  *
+ * This function is rather slow, since we are parsing the entire AST every time
+ * we replace something in the source. This way, the resulting source code
+ * maintains it's comments and any other information that the esprima parser
+ * did not understand.
+ *
+ * However a much faster alternative would be to parse the AST only once and
+ * then replace the ast nodes of the inline functions with the AST nodes
+ * from the imported modules.
+ *
  * @param {String} source - The source code to proess
  * @param {Function} callback - The callback to use to get replacements
  * @returns {String} Returns the new source
@@ -396,22 +405,23 @@ function replaceInlineFunc(source, callback) {
       return source;
     }
 
-    // Find an inline token
+    // Find an the next inline token to replace
     var token = findInlineToken(ast);
     if (!token) {
       return source;
     }
 
-    // Found a token? Callback with details
+    // Callback with details and get the replacement
     var replacement = callback(
-      token.arguments[0].value,
-      token.arguments[1].name,
-      token.arguments.slice(2)
+      token.arguments[0].value, // Module
+      token.arguments[1].name,  // Function
+      token.arguments.slice(2)  // Arguments as AST nodes
     );
 
-    // Replace that part of the source with the generated code
+    // Replace that part of the source with the generated one
     source = source.substring(0, token.range[0]) + replacement +
              source.substring(token.range[1]);
+
   }
 }
 
@@ -421,14 +431,14 @@ function replaceInlineFunc(source, callback) {
 module.exports = function(source) {
   this.cacheable();
 
-  // Convert the convenient `%macro` to a proper JS expression
+  // Convert the convenient `%inline` macro to a proper JS expression
   var hasMacros = false;
   var normSource = source.replace(MACRO, function(m, gModule, gFunction, gEmpty) {
     hasMacros = true;
     return '___js_inline_loader_inline(\'' + gModule + '\',' + gFunction + (gEmpty ? ')' : ',');
   });
 
-  // If we don't have macros, don't bother
+  // If we don't have any macros, don't spend more cycles on processing the code
   if (!hasMacros) {
     return source;
   }
