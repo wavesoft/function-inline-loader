@@ -1,6 +1,6 @@
 {
   "name": "js-inline-loader",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A webpack loader than enables inlining functions from other modules",
   "main": "js-inline-loader.js",
   "scripts": {
