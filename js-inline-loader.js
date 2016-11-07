@@ -306,13 +306,13 @@ function loadModuleContents(modulePath, options) {
  * @param {String} gArgs - The arguments passed to the inline function
  * @returns {String} Returns the generated code for this inline function
  */
-function getFunctionCode(gModule, gFunction, fnArgs) {
+function inlineFunction(gModule, gFunction, fnArgs) {
   // Resolve filename
   var filePath = path.resolve(this.context, gModule);
   var contents = loadModuleContents(filePath, this.options);
   if (!contents) {
     this.emitError('Could not find module `' + gModule + '`');
-    return '/* Missing module ' + gModule + ' */';
+    return 'undefined /* Missing module ' + gModule + ' */';
   }
 
   // Load file and extract AST
@@ -321,7 +321,7 @@ function getFunctionCode(gModule, gFunction, fnArgs) {
     ast = esprima.parse(contents, { sourceType: 'module' })
   } catch (e) {
     this.emitError('%inline("' + gModule + '"): ' + e.toString());
-    return '/* Parsing error in module ' + gModule + ' */';
+    return 'undefined /* Parsing error in module ' + gModule + ' */';
   }
   this.addDependency(filePath);
 
@@ -329,8 +329,9 @@ function getFunctionCode(gModule, gFunction, fnArgs) {
   var exportedFn = getExportedFunctions(ast);
   var fnAst = exportedFn[gFunction];
   if (!fnAst) {
-    this.emitError('%inline("' + gModule + '"): Undefined function `' + gFunction);
-    return '/* Unknown inline ' + gFunction + ' */';
+    this.emitError('%inline("' + gModule + '"): Undefined inline function `'
+      + gFunction + '`');
+    return 'undefined /* Unknown inline function ' + gFunction + ' */';
   }
 
   // Validate the length of the arguments
@@ -349,7 +350,7 @@ function getFunctionCode(gModule, gFunction, fnArgs) {
     }
   }
 
-  // Replace arguments in the function ast
+  // Replace identifiers in the ast with the ones provided by the user
   for (var i=0; i<fnAst.params.length; ++i) {
     var defaultAst = fnAst.defaults.length && fnAst.defaults[i] || {type: 'Identifier', name: 'undefined'};
     if (i < fnArgs.length) {
@@ -469,5 +470,5 @@ module.exports = function(source) {
   }
 
   // Replace all inline functions using the AST
-  return replaceInlineFunc.call(this, normSource, getFunctionCode.bind(this));
+  return replaceInlineFunc.call(this, normSource, inlineFunction.bind(this));
 };
