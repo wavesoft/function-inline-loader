@@ -48,13 +48,15 @@ npm install --save-dev js-inline-loader
 Then install it as a preloader on webpack:
 
 ```js
+  module: {
     preLoaders: [
       {
         test: /.js$/,
         exclude: /node_modules/,
         loader: 'js-inline-loader'
       }
-    ],
+    ]
+  }
 ```
 
 ## Caveats
